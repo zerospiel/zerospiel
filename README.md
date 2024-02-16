@@ -3,9 +3,9 @@
 - 🏢 Currently work for Mirantis 💛
 - 💔 Previously worked for Ozon (Platform Team), Ozon (one of the business teams), Sberbank Technologies
 - 🌱 I'm trying to start a new life by learning German, drinking beer, and playing table tennis 🏓
-- 📫 How to reach me: morgoevm@gmail.com
+- 📫 How to reach me: mmorgen@posteo.com
 
-⌛️ Sometime I'll refactor the about me page 😅
+⌛️ Someday I'll refactor the about me page 😅
 
 <!---
 zerospiel/zerospiel is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
