@@ -31,6 +31,10 @@ section.code-compact pre {
 section.references {
   font-size: 23px;
 }
+section ul {
+  display: inline-block;
+  text-align: left;
+}
 .title-meta {
   font-size: 0.58em;
   line-height: 1.35;
@@ -90,31 +94,21 @@ The slides are based on Go 1.26.2 source code.
 - Two practical optimization examples
 
 <!--
-We will start with the reason Go has its own allocator instead of asking the operating system every time.
+The structure is: first the motivation, then the main memory shapes, then the allocator path from the fast local case down to the OS.
 
-Then we will look at the memory layout: arenas, pages, spans, and slots.
-
-After that we will follow the normal allocation path. The important chain is `mcache`, then `mcentral`, then `mheap`, and finally the operating system.
-
-Then we will connect this to garbage collection and memory scavenging.
-
-At the end, we will look at two examples where reducing allocator work gives real performance wins.
+After that, we will connect allocation to GC and memory release, and close with a few performance examples.
 -->
 
 ---
 
 ## Analogy: A Workshop
 
-A small workshop builds many similar things.
+```text
+many small parts
 
-The worker does not visit the hardware store for every screw.
-
-Common parts are kept close:
-
-- tiny bins on the workbench
-- labeled drawers by screw size
-- larger boxes in the storeroom
-- bulk orders from the hardware store
+workbench bins -> labeled drawers -> storeroom boxes -> hardware store
+   closest            by size             bulk stock          rare trip
+```
 
 <!--
 Let us start with an analogy.
@@ -147,8 +141,6 @@ storeroom            big storage, more coordination
     v
 hardware store       slow, bulk delivery
 ```
-
-The allocator has the same shape.
 
 <!--
 This diagram is the main shape of the allocator.
@@ -196,8 +188,6 @@ Sorting returned parts is not one exact component, but it is close to the garbag
 
 ## When Allocation Happens
 
-Not every variable uses the heap allocator.
-
 ```text
 Go source
    |
@@ -207,8 +197,6 @@ compiler escape analysis
    v                  v
 goroutine stack       heap -> runtime.mallocgc
 ```
-
-The allocator manages heap objects and the memory used for goroutine stacks.
 
 Source: [runtime/malloc.go](https://github.com/golang/go/blob/go1.26.2/src/runtime/malloc.go#L1119-L1209)
 
@@ -227,8 +215,6 @@ One extra detail: goroutine stacks themselves are allocated from runtime-managed
 ---
 
 ## From OS Memory to Go Pages
-
-Go asks the OS for large address ranges, then manages them itself.
 
 ```text
 heap arena, usually 64 MiB on 64-bit non-Windows
@@ -257,10 +243,6 @@ The important idea is that Go reserves and prepares memory in larger pieces, the
 
 ## Spans and Size Classes
 
-A span is one or more contiguous runtime pages.
-
-Each span stores objects of one size class.
-
 ```text
 span for 1024-byte objects
 
@@ -287,12 +269,9 @@ This has some internal waste, but it makes allocation much faster. The allocator
 
 ## Scan or Noscan
 
-Each size class has two span classes:
-
-- scan: objects may contain pointers
-- noscan: objects contain no pointers
-
 ```text
+span class = size class + scan bit
+
 noscan span: GC can skip object contents
 scan span:   GC must find and follow pointers
 ```
@@ -361,8 +340,6 @@ The exact cutoff is slightly below 32 KiB in the default `mallocgc` path because
 
 ## Tiny Allocator
 
-For pointer-free objects smaller than 16 bytes.
-
 ```text
 one 16-byte block
 
@@ -370,10 +347,6 @@ one 16-byte block
 | 1 | 2 | 4    | free   |
 +---+---+------+--------+
 ```
-
-Several tiny objects share one 16-byte slot.
-
-Tradeoff: the whole block stays alive while any subobject is alive.
 
 Source: [mallocgcTiny](https://github.com/golang/go/blob/go1.26.2/src/runtime/malloc.go#L1254-L1329)
 
@@ -393,8 +366,6 @@ This is still usually a good tradeoff for small strings and small escaping point
 
 ## Fast Path: `mcache`
 
-Each scheduler `P` owns an `mcache`.
-
 ```text
 P.mcache[span class]
         |
@@ -404,8 +375,6 @@ P.mcache[span class]
         v
  next free slot
 ```
-
-No lock on the normal small-object path.
 
 Source: [mcache](https://github.com/golang/go/blob/go1.26.2/src/runtime/mcache.go#L14-L49), [nextFreeFast](https://github.com/golang/go/blob/go1.26.2/src/runtime/malloc.go#L1019-L1037)
 
@@ -426,8 +395,6 @@ This is why many heap allocations in Go are surprisingly fast.
 <!-- _class: compact invert -->
 
 ## Middle Layer: `mcentral`
-
-`mheap` owns one `mcentral` per span class.
 
 ```text
 mheap.central[136]
@@ -463,8 +430,6 @@ When `mcache` needs a fresh span, `mcentral` first tries a swept partial span. I
 
 ## Refill Path
 
-When the local span is full:
-
 ```text
 mcache
   |
@@ -480,8 +445,6 @@ mheap
   v
 OS
 ```
-
-Most allocations stop at the top.
 
 Sources: [mcache.refill](https://github.com/golang/go/blob/go1.26.2/src/runtime/mcache.go#L155-L239), [mcentral.cacheSpan](https://github.com/golang/go/blob/go1.26.2/src/runtime/mcentral.go#L81-L198)
 
@@ -503,8 +466,6 @@ This is more expensive than the local `mcache` path, but it happens much less of
 
 ## `mheap`: Page Allocator
 
-`mheap` manages runtime pages.
-
 ```text
 page bitmap:
 1 = page belongs to a span
@@ -513,8 +474,6 @@ page bitmap:
 radix summaries:
 start free | max free run | end free
 ```
-
-Go also has a per-`P` page cache: 64 pages, or 512 KiB.
 
 Sources: [page allocator](https://github.com/golang/go/blob/go1.26.2/src/runtime/mpagealloc.go#L5-L34), [page cache](https://github.com/golang/go/blob/go1.26.2/src/runtime/mpagecache.go#L12-L21)
 
@@ -575,8 +534,6 @@ After it has pages and an `mspan`, it releases the lock, may do scavenging work,
 
 ## GC Handshake
 
-The allocator and GC share span metadata.
-
 ```text
 allocation bitmap:  allocBits
 GC live bitmap:     gcmarkBits
@@ -585,8 +542,6 @@ after marking:
   allocBits = gcmarkBits
   gcmarkBits = empty bitmap for next cycle
 ```
-
-Sweeping turns dead objects back into free slots.
 
 Sources: [mspan bits](https://github.com/golang/go/blob/go1.26.2/src/runtime/mheap.go#L468-L491), [sweep swap](https://github.com/golang/go/blob/go1.26.2/src/runtime/mgcsweep.go#L678-L698)
 
@@ -608,15 +563,11 @@ This is why freeing in Go usually does not mean returning memory to the OS. It o
 
 ## Returning Memory to the OS
 
-Freed objects usually do not go straight back to the OS.
-
 ```text
 dead object -> free slot in span
 empty span  -> free pages in mheap
 idle pages  -> scavenger may release physical memory
 ```
-
-The address space usually remains reserved so Go can reuse it later.
 
 Sources: [scavenger overview](https://github.com/golang/go/blob/go1.26.2/src/runtime/mgcscavenge.go#L5-L20), [sysUnused](https://github.com/golang/go/blob/go1.26.2/src/runtime/mem.go#L63-L71)
 
@@ -636,12 +587,18 @@ So when you look at RSS, remember: garbage collection and returning memory to th
 
 ## Goroutine Stacks
 
-Goroutine stacks are also backed by runtime-managed memory.
-
-- new goroutines start with a small stack, usually 2 KiB
-- small stacks use per-`P` stack cache and global pools
-- when a stack grows, Go allocates a larger one and copies
-- stacks may shrink during GC
+```text
+new goroutine
+  |
+  v
+small stack, usually 2 KiB
+  |
+  +-- stack cache / stack pools
+  |
+  +-- grow: allocate larger stack and copy
+  |
+  +-- GC may shrink mostly unused stacks
+```
 
 Sources: [stackMin](https://github.com/golang/go/blob/go1.26.2/src/runtime/stack.go#L70-L89), [stackalloc](https://github.com/golang/go/blob/go1.26.2/src/runtime/stack.go#L338-L397), [newstack](https://github.com/golang/go/blob/go1.26.2/src/runtime/stack.go#L1014-L1026)
 
@@ -789,8 +746,6 @@ Pull2-12
   12 allocs   -> 5 allocs      -58%
 ```
 
-The allocator lesson: fewer escaping heap objects means fewer `mallocgc` calls and less GC metadata.
-
 <!--
 These are the benchmark numbers from the Go commit.
 
@@ -815,15 +770,11 @@ The tradeoff is that grouping can keep some fields alive together. Here that was
 - Knowing the allocator helps you remove avoidable heap work
 
 <!--
-The main idea is that Go avoids OS calls on the hot allocation path.
+The allocator can be summarized in three layers.
 
-Small objects are rounded into size classes. Spans hold fixed-size slots. `mcache` serves the common case without locks.
+The fast path is local and avoids OS calls. The refill path climbs through shared runtime structures. The GC path decides what can be reused and what may eventually go back to the OS.
 
-When `mcache` cannot serve the request, the runtime climbs the hierarchy to `mcentral`, then `mheap`, then sometimes the OS.
-
-The garbage collector and allocator cooperate through span metadata. The scavenger is what may return physical memory to the OS.
-
-For application code, the practical lesson is to reduce unnecessary heap allocation in hot paths.
+For application code, the useful lesson is not to fear every allocation, but to remove avoidable heap work from hot paths.
 -->
 
 ---
@@ -858,18 +809,18 @@ The page allocator proposal is also worth reading if you want to understand why 
     <a href="https://www.linkedin.com/in/morgenmg" aria-label="LinkedIn">
       <img src="assets/linkedin.svg" alt="" />
     </a>
-    <a href="https://www.linkedin.com/in/morgenmg">LinkedIn</a>
+    <a href="https://www.linkedin.com/in/morgenmg">morgenmg</a>
   </p>
   <p>
     <a href="https://github.com/zerospiel" aria-label="GitHub">
       <img src="assets/github.svg" alt="" />
     </a>
-    <a href="https://github.com/zerospiel">GitHub</a>
+    <a href="https://github.com/zerospiel">zerospiel</a>
   </p>
   <p>
     <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026" aria-label="Slides on GitHub">
       <img src="assets/github.svg" alt="" />
     </a>
-    <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026">Slides on GitHub</a>
+    <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026">Slides & examles</a>
   </p>
 </div>
