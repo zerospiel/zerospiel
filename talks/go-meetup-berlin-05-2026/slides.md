@@ -49,21 +49,47 @@ section ul {
   opacity: 0.7;
   margin-top: 1rem;
 }
-.contacts {
+.qa-body {
+  align-items: center;
   display: inline-grid;
-  gap: 0.7rem;
+  gap: 2.6rem;
+  grid-template-columns: auto auto;
+  margin-top: 1.5rem;
   text-align: left;
-  margin-top: 1.4rem;
 }
-.contacts p {
+.qa-contacts {
+  display: grid;
+  gap: 0.75rem;
+}
+.qa-contacts p {
   align-items: center;
   display: flex;
   gap: 0.65rem;
   margin: 0;
 }
-.contacts img {
+.qa-contacts img {
   height: 1.15em;
   width: 1.15em;
+}
+.qa-contacts a {
+  font-size: 0.82em;
+}
+.qr-panel {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: center;
+  text-align: center;
+}
+.qr-panel img {
+  background: white;
+  border-radius: 6px;
+  height: 9.2rem;
+  padding: 0.45rem;
+  width: 9.2rem;
+}
+.qr-panel p {
+  font-size: 0.72em;
+  margin: 0;
 }
 </style>
 
@@ -791,36 +817,39 @@ For application code, the useful lesson is not to fear every allocation, but to 
 <!--
 These are the main references I used.
 
-The two articles are good starting points. The second article is deeper, and most of it still matches Go 1.26.2.
-
 For exact details, the runtime source is the final source of truth. The allocator comments in `runtime/malloc.go` are especially useful.
 
 The page allocator proposal is also worth reading if you want to understand why the modern page allocator uses bitmaps, summaries, and per-`P` page caches.
+
+The article is a good starting point, it is very deep, and most of it still matches Go 1.26.2.
 -->
 
 ---
 
 <!-- _class: invert -->
 
-## Contacts
+## Questions?
 
-<div class="contacts">
-  <p>
-    <a href="https://www.linkedin.com/in/morgenmg" aria-label="LinkedIn">
-      <img src="assets/linkedin.svg" alt="" />
+<div class="qa-body">
+  <div class="qa-contacts">
+    <p>
+      <a href="https://www.linkedin.com/in/morgenmg" aria-label="LinkedIn">
+        <img src="assets/linkedin.svg" alt="" />
+      </a>
+      <a href="https://www.linkedin.com/in/morgenmg">linkedin.com/in/morgenmg</a>
+    </p>
+    <p>
+      <a href="https://github.com/zerospiel" aria-label="GitHub">
+        <img src="assets/github.svg" alt="" />
+      </a>
+      <a href="https://github.com/zerospiel">github.com/zerospiel</a>
+    </p>
+  </div>
+
+  <div class="qr-panel">
+    <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026" aria-label="Slides and examples">
+      <img src="assets/slides-qr.svg" alt="QR code for slides and examples" />
     </a>
-    <a href="https://www.linkedin.com/in/morgenmg">morgenmg</a>
-  </p>
-  <p>
-    <a href="https://github.com/zerospiel" aria-label="GitHub">
-      <img src="assets/github.svg" alt="" />
-    </a>
-    <a href="https://github.com/zerospiel">zerospiel</a>
-  </p>
-  <p>
-    <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026" aria-label="Slides on GitHub">
-      <img src="assets/github.svg" alt="" />
-    </a>
-    <a href="https://github.com/zerospiel/zerospiel/tree/main/talks/go-meetup-berlin-05-2026">Slides & examles</a>
-  </p>
+    <p>Slides & examples</p>
+  </div>
 </div>
